@@ -143,7 +143,7 @@ class PacketStreamTransformer implements StreamTransformer<List<int>, Packet> {
       print("Got Data");
       
       if (state == 0) {
-        length = new CodedBufferReader(data).readInt32();
+        length = new CodedBufferReader(data).readUint32();
         state = 1;
       } else if (state == 1) {
         var packet = new Packet(length, new CodedBufferReader(data).readBytes());
