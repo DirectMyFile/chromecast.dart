@@ -7,5 +7,10 @@ void main() {
     print("Connected.");
 
     var recv = cast.getReceiverChannel();
+    
+    recv.send({
+      "type": "LAUNCH",
+      "application": "YouTube"
+    });
   });
 }

@@ -5,7 +5,6 @@ import "dart:async";
 import "dart:typed_data";
 import "dart:convert";
 import "package:chromecast/cast.pb.dart";
-import "package:protobuf/protobuf.dart" show CodedBufferReader;
 
 class CastChannel {
   final Chromecast cast;
@@ -61,7 +60,6 @@ class Chromecast {
       _socket = socket;
 
       socket.transform(new PacketStreamTransformer()).listen((Packet packet) {
-        print("Got Packet");
         _msgController.add(new CastMessage.fromBuffer(packet.data));
       });
     }).then((_) {
@@ -73,21 +71,32 @@ class Chromecast {
 
       _heartbeat.onMessage.listen((msg) {
         if (msg.json["type"] == "PONG") {
-          print("PONG!");
+          _sentPong = true;
         }
       });
 
-      _timer = new Timer.periodic(new Duration(seconds: 1), (_) {
-        _heartbeat.send({
-          "type": "PING"
-        });
+      _timer = new Timer.periodic(new Duration(seconds: 3), (_) {
+        if (!_sentPong && _lastSentPing != null && new DateTime.now().millisecondsSinceEpoch - _lastSentPing.millisecondsSinceEpoch >= 8000) {
+          throw new Exception("Chromecast Timed Out");
+        }
+        
+        _sentPong = false;
+        _ping();
       });
 
-      _heartbeat.send({
-        "type": "PING"
-      });
+      _ping();
     });
   }
+  
+  void _ping() {
+    _heartbeat.send({
+      "type": "PING"
+    });
+    _lastSentPing = new DateTime.now();
+  }
+  
+  DateTime _lastSentPing;
+  bool _sentPong = false;
 
   CastChannel getReceiverChannel() {
     return getChannel("sender-0", "receiver-0", "urn:x-cast:com.google.cast.receiver");
@@ -105,48 +114,58 @@ class Chromecast {
     msg.sourceId = source;
     msg.payloadType = CastMessage_PayloadType.STRING;
     msg.protocolVersion = CastMessage_ProtocolVersion.CASTV2_1_0;
-    
-    print("SEND: source=${msg.sourceId} destination=${msg.destinationId} namespace=${msg.namespace} payloadType=${msg.payloadType.name} protocolVersion=${msg.protocolVersion.value} data=${msg.payloadUtf8}");
-    
+
     sendBuffer(msg.writeToBuffer());
   }
 
   void sendBuffer(Uint8List data) {
-    var bytes = data.buffer.asUint8List();
-    
-    var header = (new ByteData(4)..setUint32(0, bytes.lengthInBytes, Endianness.BIG_ENDIAN)).buffer.asUint32List();
-    _socket.add([]..addAll(header)..addAll(bytes));
+    var bytes = data;
+
+    var header = (new ByteData(4)..setUint32(0, bytes.lengthInBytes, Endianness.BIG_ENDIAN)).buffer.asUint8List();
+    _socket.add([]
+        ..addAll(header)
+        ..addAll(bytes));
   }
 }
 
 class Packet {
   final int length;
   final List<int> data;
-  
+
   Packet(this.length, this.data);
 }
 
 class PacketStreamTransformer implements StreamTransformer<List<int>, Packet> {
-  
+
   @override
   Stream<Packet> bind(Stream<List<int>> stream) {
     var controller = new StreamController<Packet>();
     var state = 0;
     var length = -1;
-    
+
     stream.listen((data) {
-      print("Got Data");
-      
       if (state == 0) {
-        length = new CodedBufferReader(data).readUint32();
+        length = _bytesToInteger(data);
         state = 1;
       } else if (state == 1) {
-        var packet = new Packet(length, new CodedBufferReader(data).readBytes());
+        var packet = new Packet(length, data);
+        if (data.length != length) {
+          throw new Exception("Invalid packet length. Expected ${data.length} but they sent ${length}.");
+        }
         controller.add(packet);
         state = 0;
       }
     });
-    
+
     return controller.stream;
+  }
+
+  int _bytesToInteger(List<int> bytes) {
+    Uint8List list = new Uint8List(4);
+    list[0] = bytes[0];
+    list[1] = bytes[1];
+    list[2] = bytes[2];
+    list[3] = bytes[3];
+    return list.buffer.asByteData().getInt32(0);
   }
 }
