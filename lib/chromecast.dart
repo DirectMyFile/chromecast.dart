@@ -114,7 +114,7 @@ class Chromecast {
   void sendBuffer(Uint8List data) {
     var bytes = data.buffer.asUint32List();
     
-    _socket.add((new ByteData(4)..setUint32(0, bytes.lengthInBytes)).buffer.asUint32List());
+    _socket.add((new ByteData(4)..setUint32(0, bytes.lengthInBytes, Endianness.BIG_ENDIAN)).buffer.asUint32List());
     
     var buff = new ByteData(bytes.lengthInBytes);
     
