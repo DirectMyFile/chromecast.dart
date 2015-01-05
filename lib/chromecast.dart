@@ -12,10 +12,21 @@ class CastChannel {
   final String sender;
   final String receiver;
 
+  int _reqId = 0;
+
   CastChannel(this.cast, this.namespace, this.sender, this.receiver);
 
   void send(Map<String, dynamic> json) {
     cast.sendJSON(namespace, json, sender, receiver);
+  }
+
+  Future<CastJSONMessage> sendRequest(Map<String, dynamic> input) {
+    var id = _reqId++;
+    input["requestId"] = id;
+    cast.sendJSON(namespace, input, sender, receiver);
+    return onMessage.where((it) {
+      return it.json["requestId"] == id;
+    }).first;
   }
 
   Stream<CastJSONMessage> get onMessage => cast.onMessage.where((it) {
@@ -79,7 +90,7 @@ class Chromecast {
         if (!_sentPong && _lastSentPing != null && new DateTime.now().millisecondsSinceEpoch - _lastSentPing.millisecondsSinceEpoch >= 8000) {
           throw new Exception("Chromecast Timed Out");
         }
-        
+
         _sentPong = false;
         _ping();
       });
@@ -87,14 +98,14 @@ class Chromecast {
       _ping();
     });
   }
-  
+
   void _ping() {
     _heartbeat.send({
       "type": "PING"
     });
     _lastSentPing = new DateTime.now();
   }
-  
+
   DateTime _lastSentPing;
   bool _sentPong = false;
 
