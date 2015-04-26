@@ -155,6 +155,10 @@ class PacketStreamTransformer implements StreamTransformer<List<int>, Packet> {
     var length = -1;
 
     stream.listen((data) {
+      if (data == null) {
+        return;
+      }
+
       if (state == 0) {
         length = _bytesToInteger(data);
         state = 1;
