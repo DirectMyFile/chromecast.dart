@@ -1,13 +1,13 @@
-library chromecast;
+library google_cast;
 
 import "dart:io";
 import "dart:async";
 import "dart:typed_data";
 import "dart:convert";
-import "package:chromecast/cast.pb.dart";
+import "package:google_cast/cast.pb.dart";
 
 class CastChannel {
-  final Chromecast cast;
+  final CastClient cast;
   final String namespace;
   final String sender;
   final String receiver;
@@ -49,10 +49,10 @@ class CastJSONMessage {
   }
 }
 
-class Chromecast {
+class CastClient {
   final String host;
 
-  Chromecast(this.host);
+  CastClient(this.host);
 
   CastChannel _heartbeat;
   CastChannel _connection;
